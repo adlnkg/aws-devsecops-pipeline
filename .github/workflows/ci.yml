@@ -28,7 +28,7 @@ jobs:
       - name: Run Pytest
         run: |
           cd api
-          pytest test_app.py
+          pytest testApp.py
   
   security-scan:
     name: Build & Scan Container

@@ -1,19 +1,30 @@
-FROM python:3.11-slim
-
-ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1
+# Stage 1: Build & dependency isolation
+FROM python:3.12-slim-bookworm AS builder
 
 WORKDIR /app
 
-RUN pip install --no-cache-dir --upgrade pip setuptools wheel
-
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir --prefix=/install -r requirements.txt
 
-RUN useradd -u 1000 appuser && chown -R appuser /app
-COPY . .
+# Stage 2: Minimal hardened runtime
+FROM python:3.12-slim-bookworm
+
+WORKDIR /app
+
+# Import clean dependencies from builder
+COPY --from=builder /install /usr/local
+
+# Remove outdated Debian packages flagged by Trivy
+RUN rm -rf /usr/lib/python3/dist-packages/*
+
+# Run as non-root user
+RUN adduser --system --uid 1001 --no-create-home appuser
+
+COPY --chown=appuser:appuser . .
+
 USER appuser
 
 EXPOSE 8000
 
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
